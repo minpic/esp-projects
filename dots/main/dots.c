@@ -236,8 +236,8 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 				// RX for uART service
 				.char_uuid.len = ESP_UUID_LEN_128, 
 				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
-				.char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				.char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
+				.char_perm = ESP_GATT_PERM_WRITE,
+				.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
 				.char_val = &char_rx_attr_val,
 				.char_control = NULL,
 				.char_handle = 0,
