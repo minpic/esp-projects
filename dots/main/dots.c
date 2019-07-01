@@ -98,15 +98,12 @@ typedef struct {
     uint16_t gatts_if;
     uint16_t app_id;
     uint16_t conn_id;
-    
 	uint16_t service_handle;
     esp_gatt_srvc_id_t service_id;
-    
 	uint16_t char_handle;
     esp_bt_uuid_t char_uuid;
     esp_gatt_perm_t perm;
     esp_gatt_char_prop_t property;
-    
 	uint16_t descr_handle;
     esp_bt_uuid_t descr_uuid;
 } gatts_profile_inst;
@@ -119,16 +116,7 @@ typedef struct {
 	esp_attr_value_t *char_val;
     esp_attr_control_t *char_control;
     uint16_t char_handle;
-    esp_gatts_cb_t char_read_callback;
 	esp_gatts_cb_t char_write_callback;
-	// define descriptor
-    esp_bt_uuid_t descr_uuid;
-    esp_gatt_perm_t descr_perm;
-	esp_attr_value_t *descr_val;
-    esp_attr_control_t *descr_control;
-    uint16_t descr_handle;
-    esp_gatts_cb_t descr_read_callback;
-	esp_gatts_cb_t descr_write_callback;
 } gatts_char_inst;
 
 
@@ -141,23 +129,16 @@ void select_gpio_pads(Board board);
 void set_gpio_levels(Board board);
 void reset_dots(Board board);
 
-void swap_or_jump(DOTACTION da, PLAYER player, DOTTYPE dt1, DOTTYPE dt2, Board board);
 void player2_compete_task();
 void reward_points(PLAYER player);
+void blinking(BLINKTYPE blink_type, PLAYER player);
+void swap_or_jump(DOTACTION da, PLAYER player, DOTTYPE dt1, DOTTYPE dt2, Board board);
 
 void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-void char_rx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 void char_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-void descr_rx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-void descr_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-
-void char_tx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-void char_tx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-void descr_tx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
-void descr_tx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
 
 // dots data 
@@ -200,9 +181,6 @@ static Board mediator_board = {
 // attribute values for characteristics and descriptors
 
 uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
-// uint8_t char_tx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
-uint8_t descr_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x00,0x00};
-// uint8_t descr_tx_content[GATTS_CHAR_VAL_LEN_MAX] = "Hallo ESP32";
 
 esp_attr_value_t char_rx_attr_val = {
 	.attr_max_len = GATTS_CHAR_VAL_LEN_MAX,
@@ -210,23 +188,6 @@ esp_attr_value_t char_rx_attr_val = {
 	.attr_value     = char_rx_content,
 };
 
-// esp_attr_value_t char_tx_attr_val = {
-// 	.attr_max_len = GATTS_CHAR_VAL_LEN_MAX,
-// 	.attr_len		= sizeof(char_tx_content),
-// 	.attr_value     = char_tx_content,
-// };
-
-esp_attr_value_t descr_rx_attr_val = {
-	.attr_max_len = GATTS_CHAR_VAL_LEN_MAX,
-	.attr_len		= sizeof(descr_rx_content),
-	.attr_value     = descr_rx_content,
-};
-
-// esp_attr_value_t descr_tx_attr_val = {
-// 	.attr_max_len = GATTS_CHAR_VAL_LEN_MAX,
-// 	.attr_len		= 11,
-// 	.attr_value     = descr_tx_content,
-// };
 
 // for nordic uART
 static uint8_t nordic_uart_service_uuid128[BLE_SERVICE_UUID_SIZE] = {
@@ -239,9 +200,9 @@ static uint32_t ble_add_char_pos;
 
 // defines for advertising data
 static esp_ble_adv_data_t ble_adv_data = {
-    .set_scan_rsp = false,							// not scan response
-    .include_name = true,							// include device name 	
-    .include_txpower = true,						// include tx power
+    .set_scan_rsp = false,							
+    .include_name = true,								
+    .include_txpower = true,						
     .min_interval = 0x20,
     .max_interval = 0x40,
     .appearance = 0x00,
@@ -263,66 +224,38 @@ static esp_ble_adv_params_t ble_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-// interface is defined when the service starts
+
 gatts_profile_inst gl_profile = {
          .gatts_if = ESP_GATT_IF_NONE,       
 };
 
 
 // describe characteristics and descriptors
-// public boolean isRequiredServiceSupported(@NonNull final BluetoothGatt gatt) 
-// return mRXCharacteristic != null && mTXCharacteristic != null && (writeRequest || writeCommand);
 gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 		{
 				// RX for uART service
 				.char_uuid.len = ESP_UUID_LEN_128, 
-				// nordic semiconductor vendor specific UUID
 				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
-				// .char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				// .char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
-				.char_perm = ESP_GATT_PERM_WRITE,
-				.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
+				.char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				.char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
 				.char_val = &char_rx_attr_val,
 				.char_control = NULL,
 				.char_handle = 0,
-				//.char_read_callback=char_rx_read_handler,
-				.char_write_callback=char_rx_write_handler,
-				.descr_uuid.len = ESP_UUID_LEN_16,
-				.descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,
-				//.descr_perm=ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				.descr_val = NULL, //&descr_rx_attr_val,
-				.descr_control=NULL,
-				.descr_handle=0,
-				//.descr_read_callback=descr_rx_read_handler,
-				//.descr_write_callback=descr_rx_write_handler
+				.char_write_callback=char_rx_write_handler
 		},
 		{
 				// TX for uART service
 				.char_uuid.len = ESP_UUID_LEN_128,  // TX
-				// nordic semiconductor vendor specific UUID
 				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
-				//.char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				//.char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
-				//.char_val = NULL, 
-				//.char_control=NULL,
+				.char_val = NULL, // &char_tx_attr_val,
+				.char_control=NULL,
 				.char_handle=0,
-				//.char_read_callback=char_tx_read_handler,
-				//.char_write_callback=char_tx_write_handler,
-				.descr_uuid.len = ESP_UUID_LEN_16,
-				.descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG, // ESP_GATT_UUID_CHAR_DESCRIPTION,
-				//.descr_perm=ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-				.descr_val = NULL, // &descr_tx_attr_val,
-				.descr_control=NULL,
-				.descr_handle=0,
-				//.descr_read_callback=descr_tx_read_handler,
-				//.descr_write_callback=descr_tx_write_handler
+				.char_write_callback =NULL
 		}
 };
 
 static  uint16_t notify_conn_id = 0;
 static  esp_gatt_if_t notify_gatts_if = NULL;
-static uint8_t notify_pos=0;
-static uint8_t is_notify=0;
 
 // dots functions
 // -----------------------------------------------------------
@@ -438,88 +371,6 @@ void IRAM_ATTR handle_sub_button(void* args)
 // dots server functions
 // -----------------------------------------------------------
 
-// void char_rx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-
-
-// 	esp_gatt_rsp_t rsp;
-// 	memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
-// 	rsp.attr_value.handle = param->read.handle;
-// 	if (gl_char[0].char_val!=NULL) {
-
-// 		rsp.attr_value.len = gl_char[0].char_val->attr_len;
-// 		for (uint32_t pos=0;pos<gl_char[0].char_val->attr_len&&pos<gl_char[0].char_val->attr_max_len;pos++) {
-// 			rsp.attr_value.value[pos] = gl_char[0].char_val->attr_value[pos];
-// 		}
-// 	}
-
-// 	esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
-// 								ESP_GATT_OK, &rsp);
-// }
-
-// void char_tx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
- 
-// 	esp_gatt_rsp_t rsp;
-// 	memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
-// 	rsp.attr_value.handle = param->read.handle;
-// 	if (gl_char[1].char_val!=NULL) {
-	
-// 		rsp.attr_value.len = gl_char[1].char_val->attr_len;
-// 		for (uint32_t pos=0;pos<gl_char[1].char_val->attr_len&&pos<gl_char[1].char_val->attr_max_len;pos++) {
-// 			rsp.attr_value.value[pos] = gl_char[1].char_val->attr_value[pos];
-// 		}
-// 	}
-	
-// 	esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
-// 								ESP_GATT_OK, &rsp);
-// }
-
-// void descr_rx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-
-
-// 	esp_gatt_rsp_t rsp;
-// 	memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
-// 	rsp.attr_value.handle = param->read.handle;
-// 	if (gl_char[0].descr_val!=NULL) {
-	
-// 		rsp.attr_value.len = gl_char[0].descr_val->attr_len;
-// 		for (uint32_t pos=0;pos<gl_char[0].descr_val->attr_len&&pos<gl_char[0].descr_val->attr_max_len;pos++) {
-// 			rsp.attr_value.value[pos] = gl_char[0].descr_val->attr_value[pos];
-// 		}
-// 	}
-
-// 	esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
-// 								ESP_GATT_OK, &rsp);
-// }
-
-// void descr_tx_read_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-
-
-// 	esp_gatt_rsp_t rsp;
-// 	memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
-// 	rsp.attr_value.handle = param->read.handle;
-// 	if (gl_char[1].descr_val!=NULL) {
-
-// 		rsp.attr_value.len = gl_char[1].descr_val->attr_len;
-// 		for (uint32_t pos=0;pos<gl_char[1].descr_val->attr_len&&pos<gl_char[1].descr_val->attr_max_len;pos++) {
-// 			rsp.attr_value.value[pos] = gl_char[1].descr_val->attr_value[pos];
-// 		}
-// 	}
-
-// 	esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
-// 								ESP_GATT_OK, &rsp);
-// }
-
-// void char2_notify_handle(esp_gatt_if_t gatts_if, uint16_t conn_id) {
-// 	if (is_notify==1) {
-// 		notify_pos='0';
-// 		for ( uint32_t i = 0; i < 10 ;i++) {
-	
-// 			esp_ble_gatts_send_indicate(gatts_if, conn_id, gl_char[1].char_handle,1,&notify_pos,false);
-// 			notify_pos++;
-// 		}
-// 	}
-// }
-
 void player1_compete_handler(gatts_char_inst inst)
 {
 	if (strncmp((const char *)inst.char_val->attr_value, "G", 1) == 0)
@@ -532,11 +383,11 @@ void player1_compete_handler(gatts_char_inst inst)
 	}
 	else if (strncmp((const char *)inst.char_val->attr_value, "H", 1) == 0)
 	{
-		swap_or_jump(SWAP, PLAYER1, R1, G2, player1_board);
+		swap_or_jump(JUMP, PLAYER1, R1, G2, player1_board);
 	}
 	else if (strncmp((const char *)inst.char_val->attr_value, "V", 1) == 0)
 	{
-		swap_or_jump(SWAP, PLAYER1, R2, G1, player1_board);
+		swap_or_jump(JUMP, PLAYER1, R2, G1, player1_board);
 	}
 	else if (strncmp((const char *)inst.char_val->attr_value, "S", 1) == 0)
 	{
@@ -564,171 +415,6 @@ void char_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, e
 	player1_compete_handler(gl_char[0]);
 }
 
-// void char_tx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-	
-
-// 	if (gl_char[1].char_val!=NULL) {
-		
-// 		gl_char[1].char_val->attr_len = param->write.len;
-// 		for (uint32_t pos=0;pos<param->write.len;pos++) {
-// 			gl_char[1].char_val->attr_value[pos]=param->write.value[pos];
-// 		}
-// 	}
-
-//     esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
-// }
-
-// void descr_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-
-
-// 	if (gl_char[0].descr_val!=NULL) {
-	
-// 		gl_char[0].descr_val->attr_len = param->write.len;
-// 		for (uint32_t pos=0;pos<param->write.len;pos++) {
-// 			gl_char[0].descr_val->attr_value[pos]=param->write.value[pos];
-// 		}
-// 	}
-
-//     esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
-// }
-
-// void descr_tx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-
-
-// 	if (gl_char[1].descr_val!=NULL) {
-	
-// 		gl_char[1].descr_val->attr_len = param->write.len;
-// 		for (uint32_t pos=0;pos<param->write.len;pos++) {
-// 			gl_char[1].descr_val->attr_value[pos]=param->write.value[pos];
-// 		}
-// 		is_notify = gl_char[1].descr_val->attr_value[0];
-	
-// 	}
-	
-//     esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
-// }
-
-void gatts_check_add_char(esp_bt_uuid_t char_uuid, uint16_t attr_handle) {
-
-
-	if (attr_handle != 0) {
-	
-
-		gl_char[ble_add_char_pos].char_handle=attr_handle;
-
-		// is there a descriptor to add ?
-		if (gl_char[ble_add_char_pos].descr_uuid.len!=0 && gl_char[ble_add_char_pos].descr_handle==0) {
-		
-			esp_ble_gatts_add_char_descr(gl_profile.service_handle, &gl_char[ble_add_char_pos].descr_uuid,
-					gl_char[ble_add_char_pos].descr_perm, gl_char[ble_add_char_pos].descr_val, gl_char[ble_add_char_pos].descr_control);
-		} else {
-			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
-			{
-				if (gl_char[pos].char_handle == 0) 
-				{
-					ble_add_char_pos = pos;
-					esp_ble_gatts_add_char(
-						gl_profile.service_handle, 
-						&gl_char[pos].char_uuid,
-						gl_char[pos].char_perm,
-						gl_char[pos].char_property,
-						gl_char[pos].char_val, 
-						gl_char[pos].char_control
-					);
-					break;
-				}
-			}
-		}
-	}
-}
-
-void gatts_check_add_descr(esp_bt_uuid_t descr_uuid, uint16_t attr_handle) {
-
-	if (attr_handle != 0) 
-	{
-		gl_char[ble_add_char_pos].descr_handle=attr_handle;
-	}
-	for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
-	{
-		if (gl_char[pos].char_handle == 0) 
-		{
-			ble_add_char_pos = pos;
-			esp_ble_gatts_add_char(
-				gl_profile.service_handle, 
-				&gl_char[pos].char_uuid,
-				gl_char[pos].char_perm,
-				gl_char[pos].char_property,
-				gl_char[pos].char_val, 
-				gl_char[pos].char_control
-			);
-			break;
-		}
-	}
-}
-
-void gatts_check_callback(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
-	
-	uint16_t handle=0;
-	
-	uint8_t read=1;
-
-    switch (event) {
-		
-		case ESP_GATTS_READ_EVT: 
-			read=1;
-			handle=param->read.handle;
-			break;
-		
-		
-		case ESP_GATTS_WRITE_EVT: 
-			read=0;
-			handle=param->write.handle;
-		
-		default:
-			break;
-    }
-
-	for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
-	{
-		if (gl_char[pos].char_handle==handle) 
-		{
-			if (read==1) 
-			{
-				if (gl_char[pos].char_read_callback!=NULL) 
-				{
-					gl_char[pos].char_read_callback(event, gatts_if, param);
-				}
-			} 
-			else 
-			{
-				if (gl_char[pos].char_write_callback!=NULL) 
-				{
-					gl_char[pos].char_write_callback(event, gatts_if, param);
-				}
-			}
-			break;
-		}
-		if (gl_char[pos].descr_handle==handle) 
-		{
-			if (read==1) 
-			{
-				if (gl_char[pos].descr_read_callback!=NULL) 
-				{
-					gl_char[pos].descr_read_callback(event, gatts_if, param);
-				}
-			} 
-			else 
-			{
-				if (gl_char[pos].descr_write_callback!=NULL) 
-				{
-					gl_char[pos].descr_write_callback(event, gatts_if, param);
-				}
-			}
-
-			break;
-		}
-	}
-}
 
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     
@@ -743,7 +429,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 	
 	switch (event) 
 	{
-		// register event
+
 		case ESP_GATTS_REG_EVT:
 			
 			gl_profile.service_id.is_primary = true;
@@ -754,13 +440,10 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 				gl_profile.service_id.id.uuid.uuid.uuid128[pos] = nordic_uart_service_uuid128[pos];
 			}
 
-			// set device name 
 			esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
 
-			// configure advertising data; calls gap profile event handler
 			esp_ble_gap_config_adv_data(&ble_adv_data);
 
-			// creates service; get the create event
 			esp_ble_gatts_create_service(gatts_if, &gl_profile.service_id, GATTS_NUM_HANDLE);
 			
 			break;
@@ -773,7 +456,6 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 
 			esp_ble_gatts_start_service(gl_profile.service_handle);
 			
-			// add characteristics 
 			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
 			{
 				if (gl_char[pos].char_handle == 0) 
@@ -794,78 +476,53 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			break;
 		
 		case ESP_GATTS_ADD_CHAR_EVT: 
-
 			gl_profile.char_handle = param->add_char.attr_handle;
 
-			if (param->add_char.status==ESP_GATT_OK) {
-				gatts_check_add_char(param->add_char.char_uuid,param->add_char.attr_handle);
-			}
-			break;
-		
-		case ESP_GATTS_ADD_CHAR_DESCR_EVT:
-
-			if (param->add_char_descr.status==ESP_GATT_OK) 
+			if (param->add_char.status==ESP_GATT_OK) 
 			{
-				gatts_check_add_descr(param->add_char.char_uuid,param->add_char.attr_handle);
+				if (param->add_char.attr_handle != 0) 
+				{
+					gl_char[ble_add_char_pos].char_handle=param->add_char.attr_handle;
+
+				
+						for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
+						{
+							if (gl_char[pos].char_handle == 0) 
+							{
+								ble_add_char_pos = pos;
+								esp_ble_gatts_add_char(
+									gl_profile.service_handle, 
+									&gl_char[pos].char_uuid,
+									gl_char[pos].char_perm,
+									gl_char[pos].char_property,
+									gl_char[pos].char_val, 
+									gl_char[pos].char_control
+								);
+								break;
+							}
+						}	
+				}
 			}
-
 			break;
-
-		case ESP_GATTS_READ_EVT: 
-			
-			gatts_check_callback(event, gatts_if, param);
-			break;
-   	 
 		case ESP_GATTS_WRITE_EVT: 
-
-			gatts_check_callback(event, gatts_if, param);
+			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
+			{
+				if (gl_char[pos].char_handle==param->write.handle) 
+				{
+					
+					if (gl_char[pos].char_write_callback!=NULL) 
+					{
+						gl_char[pos].char_write_callback(event, gatts_if, param);
+					}
+				}
+			}
 			break;
-		
-		case ESP_GATTS_EXEC_WRITE_EVT:
-		case ESP_GATTS_MTU_EVT:
-		case ESP_GATTS_CONF_EVT:
-		
-		case ESP_GATTS_UNREG_EVT:
-			
-			break;
-		
-
-		case ESP_GATTS_ADD_INCL_SRVC_EVT:
-			
-			break;
-		
-		
-
-		case ESP_GATTS_DELETE_EVT:
-
-			break;
-
-		case ESP_GATTS_START_EVT:
-			
-			break;
-		
-		case ESP_GATTS_STOP_EVT:
-			
-			break;
-		
 		case ESP_GATTS_CONNECT_EVT:
-			
 			gl_profile.conn_id = param->connect.conn_id;
-
 			break;
-		
 		case ESP_GATTS_DISCONNECT_EVT:
-
 			esp_ble_gap_start_advertising(&ble_adv_params);
-
 			break;
-
-		case ESP_GATTS_OPEN_EVT:
-		case ESP_GATTS_CANCEL_OPEN_EVT:
-		case ESP_GATTS_CLOSE_EVT:
-		case ESP_GATTS_LISTEN_EVT:
-		case ESP_GATTS_CONGEST_EVT:
-		
 		default:
 			break;
     }
@@ -889,7 +546,8 @@ void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
     gatts_profile_event_handler(event, gatts_if, param);
 }
 
-
+// competition functions
+// -----------------------------------------------------------
 
 void swap_or_jump(DOTACTION da, PLAYER player, DOTTYPE dt1, DOTTYPE dt2, Board board)
 {
@@ -966,7 +624,6 @@ void blinking(BLINKTYPE blink_type, PLAYER player)
 			break;
 	}
 }
-
 
 void reward_points(PLAYER player)
 {
@@ -1055,14 +712,6 @@ void player2_compete_task()
 	}
 }
 
-
-
-
-// BLE 
-// ---------------------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------------------
-
 void app_main()
 {
 
@@ -1149,7 +798,7 @@ void app_main()
 
 		xTaskCreate(player2_compete_task, "player2_compete_task", 2048, NULL, 10, &player2_compete_handle);
 		
-        vTaskDelay(8000 / portTICK_PERIOD_MS);
+        vTaskDelay(12000 / portTICK_PERIOD_MS);
 
 		vTaskDelete(player2_compete_handle);
 
