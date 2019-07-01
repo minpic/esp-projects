@@ -1,8 +1,23 @@
+/*(hardware debouncer) switch debouncer for push button
+    bouncing effect 
+    the chip works faster than the bouncing, thinks many presses
+    different bouncing per button 
+    add ceramic capitor to make Resistor-Capitor delay circuit to filter out the bouncing 
+    smooths out curve of waveform on oscilliscope
+gatt server
+gpio
+app specific 
+BLE theory
+*/
+
+// preprocessor directives
+
+// include preprocessor
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
-#include "freertos/FreeRTOS.h"
+#include "freertos/FreeRTOS.h" // free real-time operating system kernal
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
@@ -13,45 +28,59 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_err.h"
-#include "esp_bt.h"
-#include "esp_gap_ble_api.h"
-#include "esp_gatts_api.h"
+
+#include "esp_bt.h"				// implements bt controller, HCI config procedure for host side
+#include "esp_bt_main.h"		// implements init and enabling for bluedroid stack
+#include "esp_gap_ble_api.h"	// implements GAP config for advertising
+#include "esp_gatts_api.h"		// implements GATT config, e.g., creating services and characteristics
+
 #include "esp_bt_defs.h"
-#include "esp_bt_main.h"
 #include "esp_gatt_common_api.h"
 #include "sdkconfig.h"
 
+// define preprocessors (define macros)
 #define DOTS_PER_BOARD 4
 
+// define pins for player 1 board
 #define P1_B_DOT  2
 #define P1_R1_DOT 4
 #define P1_R2_DOT 5
 #define P1_G1_DOT 12
 #define P1_G2_DOT 13
 
+// define pins for player 2 board
 #define P2_B_DOT  14
 #define P2_R1_DOT 15
 #define P2_R2_DOT 16
 #define P2_G1_DOT 17
 #define P2_G2_DOT 18
 
+// define pins for mediator board
 #define M_R1_DOT 21
 #define M_R2_DOT 22
 #define M_G1_DOT 23
 #define M_G2_DOT 25
 
+// define pins for mechanical push buttons
 #define SWAP_RED_BUTTON 26
 #define SWAP_GRE_BUTTON 27
 #define JUMP_HOR_BUTTON 32
 #define JUMP_VER_BUTTON 33
 #define SUB_BUTTON 19
 
+
 #define GATTS_SERVICE_UUID      	0x0001
 #define GATTS_CHAR_NUM		    	2
+// number of GATT handles
 #define GATTS_NUM_HANDLE        	1 + (3 * GATTS_CHAR_NUM)
+// 1 service handle
+// 2 characteristic handles
+// 2 characteristic value handles
+// 2 characteristic descriptor values
+
 #define BLE_DEVICE_NAME            	"DOTS_SERVER"
 #define BLE_MANUFACTURER_DATA_LEN  	4
-#define GATTS_CHAR_VAL_LEN_MAX		22
+#define GATTS_CHAR_VAL_LEN_MAX		22 // define characteristics length
 #define DOTS_PLAYER1_PROFILE_ID 	0
 
 #define GATTS_TAG "GATTS"
@@ -94,21 +123,37 @@ typedef enum {
 
 typedef DOT Board[DOTS_PER_BOARD]; 
 
+// structure for application profile
+// organizes functionality designed for client app
+// each profile is seen as BLE service, client must discrminate services
+// struct members 
+// and have a corresponding callback function; in this case: gatts_profile_event_handler
+
+// define application profile
 typedef struct {
+	// gatt interface
     uint16_t gatts_if;
+	// application id
     uint16_t app_id;
+	// connection id
     uint16_t conn_id;
-    
+
 	uint16_t service_handle;
     esp_gatt_srvc_id_t service_id;
     
 	uint16_t char_handle;
     esp_bt_uuid_t char_uuid;
+	// attribute permissions
     esp_gatt_perm_t perm;
     esp_gatt_char_prop_t property;
     
+	// (client characteristic configuration) descriptor handle
+	// for notifications or indications
+	// describes if notifications and indications are enabled
+	// and how char may be configured for a specific client
 	uint16_t descr_handle;
     esp_bt_uuid_t descr_uuid;
+
 } gatts_profile_inst;
 
 typedef struct {
@@ -197,8 +242,8 @@ static Board mediator_board = {
 // DOT server data
 // -----------------------------------------------------------
 
-// attribute values for characteristics and descriptors
-
+// dummy attribute values for characteristics and descriptors
+// must be nonnull object and length greater than 0
 uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
 uint8_t char_tx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
 uint8_t descr_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x00,0x00};
@@ -236,14 +281,32 @@ static uint8_t nordic_uart_service_uuid128[BLE_SERVICE_UUID_SIZE] = {
 static uint8_t ble_manufacturer[BLE_MANUFACTURER_DATA_LEN] =  {0x12, 0x23, 0x45, 0x56};
 
 static uint32_t ble_add_char_pos;
-
+/*
+typedef struct {
+    bool set_scan_rsp;            /*!< Set this advertising data as scan response or not
+    bool include_name;            /*!< Advertising data include device name or not 
+    bool include_txpower;         /*!< Advertising data include TX power 
+    int min_interval;             /*!< Advertising data show slave preferred connection min interval 
+    int max_interval;             /*!< Advertising data show slave preferred connection max interval 
+    int appearance;               /*!< External appearance of device 
+    uint16_t manufacturer_len;    /*!< Manufacturer data length 
+    uint8_t *p_manufacturer_data; /*!< Manufacturer data point 
+    uint16_t service_data_len;    /*!< Service data length 
+    uint8_t *p_service_data;      /*!< Service data point 
+    uint16_t service_uuid_len;    /*!< Service uuid length 
+    uint8_t *p_service_uuid;      /*!< Service uuid array point 
+    uint8_t flag;                 /*!< Advertising flag of discovery mode, see BLE_ADV_DATA_FLAG detail 
+} esp_ble_adv_data_t;
+*/
 // defines for advertising data
+// advertising payload max 31 bytes (advertisement packet limit)
+// info shown to client
 static esp_ble_adv_data_t ble_adv_data = {
     .set_scan_rsp = false,							// not scan response
     .include_name = true,							// include device name 	
     .include_txpower = true,						// include tx power
-    .min_interval = 0x20,
-    .max_interval = 0x40,
+    .min_interval = 0x20, // 2*16 * 1.25ms =  40ms
+    .max_interval = 0x40, // 4*16 * 1.25ms =  80ms
     .appearance = 0x00,
     .manufacturer_len = BLE_MANUFACTURER_DATA_LEN,
     .p_manufacturer_data =  (uint8_t *)ble_manufacturer,
@@ -251,19 +314,28 @@ static esp_ble_adv_data_t ble_adv_data = {
     .p_service_data = NULL,
     .service_uuid_len = BLE_SERVICE_UUID_SIZE,
     .p_service_uuid = nordic_uart_service_uuid128,
+	// BLE_ADV_DATA_FLAG data flag bit definition used for advertising data flag
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
+// config required for gap to execute
 static esp_ble_adv_params_t ble_adv_params = {
-    .adv_int_min        = 0x20,
-    .adv_int_max        = 0x40,
+	// advertising interval between 20 and 40 ms
+    .adv_int_min        = 0x20, // 32
+    .adv_int_max        = 0x40, // 64
+	// not directed to a particular device, generic
     .adv_type           = ADV_TYPE_IND,
+	// public address
     .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
+	// advertises on all channels
     .channel_map        = ADV_CHNL_ALL,
+	// allow both scan and connection events from anyone
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
 // interface is defined when the service starts
+// application profile is not linked to a client yet: ESP_GATT_IF_NONE
+// implement app profile structure
 gatts_profile_inst gl_profile = {
          .gatts_if = ESP_GATT_IF_NONE,       
 };
@@ -276,7 +348,12 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 				.char_uuid.len = ESP_UUID_LEN_128, 
 				// nordic semiconductor vendor specific UUID
 				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
+				// char_perm, property shown to client to let know, server accepts this
+				// to read / to write permitted
+				// allows capability to be used
 				.char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+				// char can be read, written, can notify value changes
+				// offers hint of capability
 				.char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
 				.char_val = &char_rx_attr_val,
 				.char_control = NULL,
@@ -287,6 +364,7 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 				.descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,
 				.descr_perm=ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 				.descr_val = &descr_rx_attr_val,
+				// since NULL need to esp_ble_gatts_send_response
 				.descr_control=NULL,
 				.descr_handle=0,
 				.descr_read_callback=descr_rx_read_handler,
@@ -300,6 +378,7 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 				.char_perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
 				.char_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
 				.char_val = &char_tx_attr_val,
+				// attribute response control attribute
 				.char_control=NULL,
 				.char_handle=0,
 				.char_read_callback=char_tx_read_handler,
@@ -729,8 +808,13 @@ void gatts_check_callback(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, es
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     
 	// start advertising once setting completed
+	// if advert started successfully this event is generated
+	// make advertising is occurring
 	if (event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT)
 	{
+		// start advertising
+		// pass in advertising parameters required by stack to operate
+		// makes server start advertising
 		esp_ble_gap_start_advertising(&ble_adv_params);
 	}
 }
@@ -740,6 +824,8 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 	switch (event) 
 	{
 		// register event
+		// register application event is first one called during life of program
+		// configures advertising parameters upon registration
 		case ESP_GATTS_REG_EVT:
 			
 			gl_profile.service_id.is_primary = true;
@@ -753,7 +839,8 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			// set device name 
 			esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
 
-			// configure advertising data; calls gap profile event handler
+			// configure bluetooth advertising data; calls gap profile event handler
+			// configs advert data that will be advertised to client
 			esp_ble_gap_config_adv_data(&ble_adv_data);
 
 			// creates service; get the create event
@@ -761,15 +848,23 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			
 			break;
 
+		// triggered when a service is successfully created
 		case ESP_GATTS_CREATE_EVT:
-		
+
+			// service handle generated by BLE stack and stored
+			// will be used by application layer to refer to his service
 			gl_profile.service_handle = param->create.service_handle;
+
+			// set uuid of char and uuid length
 			gl_profile.char_uuid.len = gl_char[0].char_uuid.len;
 			gl_profile.char_uuid.uuid.uuid16 = gl_char[0].char_uuid.uuid.uuid16;
 
+			// start service with previously generated service handle
+			// triggers ESP_GATTS_START_EVT
 			esp_ble_gatts_start_service(gl_profile.service_handle);
 			
-			// add characteristics 
+			// add characteristics to service
+			// triggers ESP_GATTS_ADD_CHAR_EVT
 			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
 			{
 				if (gl_char[pos].char_handle == 0) 
@@ -788,13 +883,16 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			}
 					
 			break;
-		
+		// triggered by esp_ble_gatts_start_service
+		// params: status, attr_handle, service_handle, char_uuid
+		// handle is generated by the stack for the char just added
 		case ESP_GATTS_ADD_CHAR_EVT: 
 
+			// store stack generated handle in profile
 			gl_profile.char_handle = param->add_char.attr_handle;
 
 			if (param->add_char.status==ESP_GATT_OK) {
-				gatts_check_add_char(param->add_char.char_uuid,param->add_char.attr_handle);
+				gatts_check_add_char(param->add_char.char_uuid, param->add_char.attr_handle);
 			}
 			break;
 		
@@ -802,78 +900,61 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 
 			if (param->add_char_descr.status==ESP_GATT_OK) 
 			{
-				gatts_check_add_descr(param->add_char.char_uuid,param->add_char.attr_handle);
+				gatts_check_add_descr(param->add_char.char_uuid, param->add_char.attr_handle);
 			}
 
 			break;
-
-		case ESP_GATTS_READ_EVT: 
-			
+		// manage read events
+		case ESP_GATTS_READ_EVT: 		
 			gatts_check_callback(event, gatts_if, param);
 			break;
-   	 
+		// manage write events
 		case ESP_GATTS_WRITE_EVT: 
-
 			gatts_check_callback(event, gatts_if, param);
 			break;
-		
 		case ESP_GATTS_EXEC_WRITE_EVT:
 		case ESP_GATTS_MTU_EVT:
 		case ESP_GATTS_CONF_EVT:
-		
-		case ESP_GATTS_UNREG_EVT:
-			
+		case ESP_GATTS_UNREG_EVT:			
 			break;
-		
-
-		case ESP_GATTS_ADD_INCL_SRVC_EVT:
-			
+		case ESP_GATTS_ADD_INCL_SRVC_EVT:	
 			break;
-		
-		
-
 		case ESP_GATTS_DELETE_EVT:
-
 			break;
-
-		case ESP_GATTS_START_EVT:
-			
+		case ESP_GATTS_START_EVT:			
 			break;
-		
 		case ESP_GATTS_STOP_EVT:
-			
 			break;
-		
+		// is triggered when a client has connected to the GATT server
 		case ESP_GATTS_CONNECT_EVT:
-			
 			gl_profile.conn_id = param->connect.conn_id;
-
 			break;
-		
 		case ESP_GATTS_DISCONNECT_EVT:
-
 			esp_ble_gap_start_advertising(&ble_adv_params);
-
 			break;
-
 		case ESP_GATTS_OPEN_EVT:
 		case ESP_GATTS_CANCEL_OPEN_EVT:
 		case ESP_GATTS_CLOSE_EVT:
 		case ESP_GATTS_LISTEN_EVT:
-		case ESP_GATTS_CONGEST_EVT:
-		
+		case ESP_GATTS_CONGEST_EVT:	
 		default:
 			break;
     }
 }
 
+// captures ESP_GATTS_REG_EVT
 void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
     
+	// when app profile is registered
+	// ESP_GATTS_REG_EVT is triggiered
+	// params: esp_gatt_status t, app_id, gatt interface (assigned by BLE stack)
+
 	// gatts is called once gap registered
     if (event == ESP_GATTS_REG_EVT) 
 	{
         if (param->reg.status == ESP_GATT_OK) 
 		{
+			// store GATT interface in profile
         	gl_profile.gatts_if = gatts_if;
         } 
 		else 
@@ -1067,23 +1148,101 @@ void app_main()
     // init and enable controller
 
     esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+	
+	
+/*
+	#define BT_CONTROLLER_INIT_CONFIG_DEFAULT() {                              \
+    .controller_task_stack_size = ESP_TASK_BT_CONTROLLER_STACK,            \
+    .controller_task_prio = ESP_TASK_BT_CONTROLLER_PRIO,                   \
+    .hci_uart_no = BT_HCI_UART_NO_DEFAULT,                                 \
+    .hci_uart_baudrate = BT_HCI_UART_BAUDRATE_DEFAULT,                     \
+    .scan_duplicate_mode = SCAN_DUPLICATE_MODE,                            \
+    .scan_duplicate_type = SCAN_DUPLICATE_TYPE_VALUE,                      \
+    .normal_adv_size = NORMAL_SCAN_DUPLICATE_CACHE_SIZE,                   \
+    .mesh_adv_size = MESH_DUPLICATE_SCAN_CACHE_SIZE,                       \
+    .send_adv_reserved_size = SCAN_SEND_ADV_RESERVED_SIZE,                 \
+    .controller_debug_flag = CONTROLLER_ADV_LOST_DEBUG_BIT,                \
+    .mode = BTDM_CONTROLLER_MODE_EFF,                                      \
+    .ble_max_conn = CONFIG_BTDM_CTRL_BLE_MAX_CONN_EFF,                     \
+    .bt_max_acl_conn = CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN_EFF,           \
+    .bt_sco_datapath = CONFIG_BTDM_CTRL_BR_EDR_SCO_DATA_PATH_EFF,          \
+    .bt_max_sync_conn = CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN_EFF,         \
+    .ble_sca = CONFIG_BTDM_BLE_SLEEP_CLOCK_ACCURACY_INDEX_EFF,             \
+    .magic = ESP_BT_CONTROLLER_CONFIG_MAGIC_VAL,                           \
+};
 
+
+typedef struct {
+    
+    Following parameters can be configured runtime, when call esp_bt_controller_init()
+     
+    uint16_t controller_task_stack_size;    /*!< Bluetooth controller task stack size 
+    uint8_t controller_task_prio;           /*!< Bluetooth controller task priority 
+    uint8_t hci_uart_no;                    /*!< If use UART1/2 as HCI IO interface, indicate UART number 
+    uint32_t hci_uart_baudrate;             /*!< If use UART1/2 as HCI IO interface, indicate UART baudrate 
+    uint8_t scan_duplicate_mode;            /*!< scan duplicate mode 
+    uint8_t scan_duplicate_type;            /*!< scan duplicate type 
+    uint16_t normal_adv_size;               /*!< Normal adv size for scan duplicate 
+    uint16_t mesh_adv_size;                 /*!< Mesh adv size for scan duplicate 
+    uint16_t send_adv_reserved_size;        /*!< Controller minimum memory value 
+    uint32_t  controller_debug_flag;        /*!< Controller debug log flag 
+    uint8_t mode;                           /*!< Controller mode: BR/EDR, BLE or Dual Mode 
+    uint8_t ble_max_conn;                   /*!< BLE maximum connection numbers 
+    uint8_t bt_max_acl_conn;                /*!< BR/EDR maximum ACL connection numbers 
+    uint8_t bt_sco_datapath;                /*!< SCO data path, i.e. HCI or PCM module 
+    uint8_t bt_max_sync_conn;               /*!< BR/EDR maximum ACL connection numbers. Effective in menuconfig 
+    uint8_t ble_sca;                        /*!< BLE low power crystal accuracy index 
+    uint32_t magic;                         /*!< Magic number 
+
+} esp_bt_controller_config_t;
+
+#define TASK_EXTRA_STACK_SIZE      (512)
+#endif
+
+#define BT_TASK_EXTRA_STACK_SIZE      TASK_EXTRA_STACK_SIZE
+#define ESP_TASK_BT_CONTROLLER_STACK  (3584 + TASK_EXTRA_STACK_SIZE)
+
+*/
+	// bluetooth controller
+	// implements HCI on controller side, LL, PHY
+	// deals with the lower layers of BLE stack
+	// generate BT controller configuration structure
+	// macro defining default structure 
+	// default settings
+	// sets controller stack size, priority, and HCI baud rate
+	// baud rate (symbol rate): speed of communication over a data channel, bits per second, 921600
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+	
+	// initialize bluetooth controller with default configuration
     esp_bt_controller_init(&bt_cfg);
+	
+	// enable the blue tooth controller in BLE mode
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
   
-    // init and enable BLE protocol stack 
+    // init and enable BLE (bluedroid) protocol stack 
 
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
-    // register gatt server event handler
+	// bluedroid stack is running (definitions and APIs for BLE) in program flow
+	// need to define functionality of the application
+	// react to a connect event and a 'write' event
+	// need two managers
+	// GATT and GAP event handlers 
+	// register a callback function for each event handler so application knows which functions 
+	// are going to handle GAP and GATT events
+	// register these event handlers to act as callback functions for GAP and GATT events
+    // will handle all events pushed to the application from the BLE stack
+	
+	// register gatt server event handler
     esp_ble_gatts_register_callback(gatts_event_handler);
 
     // register gap event handler
     esp_ble_gap_register_callback(gap_event_handler);
 
     // register app
+	// register app profile with an app id
+	// when app profile is registered an ESP_GATTS_REG_EVT is triggered
     esp_ble_gatts_app_register(DOTS_PLAYER1_PROFILE_ID);
 
 	// setup buttons
