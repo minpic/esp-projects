@@ -1,2 +1,1 @@
-- Implement BLE Generic Attribute Profile (GATT) Server
-- One application profile with two characteristics
+
