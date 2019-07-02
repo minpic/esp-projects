@@ -334,43 +334,6 @@ void reset_dots(Board board)
     set_gpio_levels(board);  
 }
 
-// button handlers
-// -----------------------------------------------------------
-
-void IRAM_ATTR handle_swap_red_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
-	gpio_num_t gpio_no = (gpio_num_t) SWAP_RED_BUTTON; 
-	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
-}
-
-void IRAM_ATTR handle_swap_gre_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
-	gpio_num_t gpio_no = (gpio_num_t) SWAP_GRE_BUTTON; 
-	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
-}
-
-void IRAM_ATTR handle_jump_hor_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
-	gpio_num_t gpio_no = (gpio_num_t) JUMP_HOR_BUTTON; 
-	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
-}
-
-void IRAM_ATTR handle_jump_ver_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
-	gpio_num_t gpio_no = (gpio_num_t) JUMP_VER_BUTTON; 
-	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
-}
-
-void IRAM_ATTR handle_sub_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
-	gpio_num_t gpio_no = (gpio_num_t) SUB_BUTTON; 
-	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
-}
 
 // dots server functions
 // -----------------------------------------------------------
@@ -536,6 +499,44 @@ void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
     }
 
     gatts_profile_event_handler(event, gatts_if, param);
+}
+
+// button handlers
+// -----------------------------------------------------------
+
+void IRAM_ATTR handle_swap_red_button(void* args)
+{
+	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+	gpio_num_t gpio_no = (gpio_num_t) SWAP_RED_BUTTON; 
+	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
+}
+
+void IRAM_ATTR handle_swap_gre_button(void* args)
+{
+	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+	gpio_num_t gpio_no = (gpio_num_t) SWAP_GRE_BUTTON; 
+	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
+}
+
+void IRAM_ATTR handle_jump_hor_button(void* args)
+{
+	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+	gpio_num_t gpio_no = (gpio_num_t) JUMP_HOR_BUTTON; 
+	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
+}
+
+void IRAM_ATTR handle_jump_ver_button(void* args)
+{
+	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+	gpio_num_t gpio_no = (gpio_num_t) JUMP_VER_BUTTON; 
+	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
+}
+
+void IRAM_ATTR handle_sub_button(void* args)
+{
+	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+	gpio_num_t gpio_no = (gpio_num_t) SUB_BUTTON; 
+	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
 
 // competition functions
