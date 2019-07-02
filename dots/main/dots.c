@@ -278,8 +278,7 @@ void reset_bluedots()
 
 int create_num_of_dots()
 {
-    srand(time(NULL));
-    short num_of_dots = 0;
+    int num_of_dots = 0;
     while(num_of_dots == 0) 
         num_of_dots = rand() % DOTS_PER_BOARD;
     return num_of_dots; 
@@ -287,6 +286,7 @@ int create_num_of_dots()
 
 void determine_which_dots(int num_of_dots, Board board)
 {
+	
     int pos; 
     int i; 
     int on_off[DOTS_PER_BOARD] = { 0 }; 
@@ -714,6 +714,7 @@ void player2_compete_task()
 
 void app_main()
 {
+	srand(time(NULL));
 
     nvs_flash_init();
 
