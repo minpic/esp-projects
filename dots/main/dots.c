@@ -23,28 +23,34 @@
 
 #define DOTS_PER_BOARD 4
 
+// master board
+#define M_R1_DOT 21
+#define M_R2_DOT 22
+#define M_G1_DOT 23
+#define M_G2_DOT 25
+
+// player 1 board
 #define P1_B_DOT  2
 #define P1_R1_DOT 4
 #define P1_R2_DOT 5
 #define P1_G1_DOT 12
 #define P1_G2_DOT 13
 
+// player 2 board
 #define P2_B_DOT  14
 #define P2_R1_DOT 15
 #define P2_R2_DOT 16
 #define P2_G1_DOT 17
 #define P2_G2_DOT 18
 
-#define M_R1_DOT 21
-#define M_R2_DOT 22
-#define M_G1_DOT 23
-#define M_G2_DOT 25
-
+// player 2 buttons
 #define SWAP_RED_BUTTON 26
 #define SWAP_GRE_BUTTON 27
 #define JUMP_HOR_BUTTON 32
 #define JUMP_VER_BUTTON 33
 #define SUB_BUTTON 19
+
+#define BUTTON_PIN_SEL ((1ULL<<SWAP_RED_BUTTON) | (1ULL<<SWAP_GRE_BUTTON) | (1ULL<<JUMP_HOR_BUTTON) | (1ULL<<JUMP_VER_BUTTON) | (1<<SUB_BUTTON))
 
 #define GATTS_SERVICE_UUID      	0x0001
 #define GATTS_CHAR_NUM		    	2
@@ -53,12 +59,8 @@
 #define BLE_MANUFACTURER_DATA_LEN  	4
 #define GATTS_CHAR_VAL_LEN_MAX		22
 #define DOTS_PLAYER1_PROFILE_ID 	0
-
-#define GATTS_TAG "GATTS"
-#define BLE_SERVICE_UUID_SIZE ESP_UUID_LEN_128
-
-#define BUTTON_PIN_SEL ((1ULL<<SWAP_RED_BUTTON) | (1ULL<<SWAP_GRE_BUTTON) | (1ULL<<JUMP_HOR_BUTTON) | (1ULL<<JUMP_VER_BUTTON) | (1<<SUB_BUTTON))
-
+#define GATTS_TAG 					"GATTS"
+#define BLE_SERVICE_UUID_SIZE 		ESP_UUID_LEN_128
 
 // structs and enums
 // -----------------------------------------------------------
@@ -81,19 +83,20 @@ typedef enum {
 	PLAYER2
 } PLAYER;
 
+typedef enum {
+	SCORE, 
+	WIN
+} BLINKTYPE;
+
 typedef struct {
     gpio_num_t gpio_num;
     DOTTYPE dottype; 
     int level;
 } DOT;
 
-typedef enum {
-	SCORE, 
-	WIN
-} BLINKTYPE;
-
 typedef DOT Board[DOTS_PER_BOARD]; 
 
+// GATT profile structure
 typedef struct {
     uint16_t gatts_if;
     uint16_t app_id;
@@ -108,8 +111,8 @@ typedef struct {
     esp_bt_uuid_t descr_uuid;
 } gatts_profile_inst;
 
+// GATT characteristic structure
 typedef struct {
-    // define characteristic 
 	esp_bt_uuid_t char_uuid;
     esp_gatt_perm_t char_perm;
 	esp_gatt_char_prop_t char_property;
@@ -175,7 +178,7 @@ static Board mediator_board = {
     { .gpio_num = M_G2_DOT, .dottype = G2, .level = 0 }
 }; 
 
-// DOT server data
+// DOTS server data
 // -----------------------------------------------------------
 
 // attribute values for characteristics and descriptors
@@ -183,11 +186,10 @@ static Board mediator_board = {
 uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
 
 esp_attr_value_t char_rx_attr_val = {
-	.attr_max_len = GATTS_CHAR_VAL_LEN_MAX,
+	.attr_max_len 	= GATTS_CHAR_VAL_LEN_MAX,
 	.attr_len		= sizeof(char_rx_content),
 	.attr_value     = char_rx_content,
 };
-
 
 // for nordic uART
 static uint8_t nordic_uart_service_uuid128[BLE_SERVICE_UUID_SIZE] = {
@@ -198,7 +200,7 @@ static uint8_t ble_manufacturer[BLE_MANUFACTURER_DATA_LEN] =  {0x12, 0x23, 0x45,
 
 static uint32_t ble_add_char_pos;
 
-// defines for advertising data
+// advertising data 
 static esp_ble_adv_data_t ble_adv_data = {
     .set_scan_rsp = false,							
     .include_name = true,								
@@ -215,6 +217,7 @@ static esp_ble_adv_data_t ble_adv_data = {
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
+// advertising parameters
 static esp_ble_adv_params_t ble_adv_params = {
     .adv_int_min        = 0x20,
     .adv_int_max        = 0x40,
@@ -224,34 +227,33 @@ static esp_ble_adv_params_t ble_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
-
+// GATT profile
 gatts_profile_inst gl_profile = {
          .gatts_if = ESP_GATT_IF_NONE,       
 };
 
-
-// describe characteristics and descriptors
+// characteristics
 gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
-		{
-				// RX for uART service
-				.char_uuid.len = ESP_UUID_LEN_128, 
-				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
-				.char_perm = ESP_GATT_PERM_WRITE,
-				.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
-				.char_val = &char_rx_attr_val,
-				.char_control = NULL,
-				.char_handle = 0,
-				.char_write_callback=char_rx_write_handler
-		},
-		{
-				// TX for uART service
-				.char_uuid.len = ESP_UUID_LEN_128,  // TX
-				.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
-				.char_val = NULL, // &char_tx_attr_val,
-				.char_control=NULL,
-				.char_handle=0,
-				.char_write_callback =NULL
-		}
+	{
+			// RX for uART service
+			.char_uuid.len = ESP_UUID_LEN_128, 
+			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
+			.char_perm = ESP_GATT_PERM_WRITE,
+			.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
+			.char_val = &char_rx_attr_val,
+			.char_control = NULL,
+			.char_handle = 0,
+			.char_write_callback=char_rx_write_handler
+	},
+	{
+			// TX for uART service
+			.char_uuid.len = ESP_UUID_LEN_128,  // TX
+			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
+			.char_val = NULL, // &char_tx_attr_val,
+			.char_control=NULL,
+			.char_handle=0,
+			.char_write_callback =NULL
+	}
 };
 
 static  uint16_t notify_conn_id = 0;
@@ -262,8 +264,8 @@ static  esp_gatt_if_t notify_gatts_if = NULL;
 
 void set_bluedot_levels()
 {
-	player1_bluedot.level = rand() % 2;
-	player2_bluedot.level = rand() % 2;
+	player1_bluedot.level = esp_random() % 2;
+	player2_bluedot.level = esp_random() % 2;
 	gpio_set_level(player1_bluedot.gpio_num, player1_bluedot.level);
 	gpio_set_level(player2_bluedot.gpio_num, player2_bluedot.level);
 }
@@ -280,27 +282,23 @@ int create_num_of_dots()
 {
     int num_of_dots = 0;
     while(num_of_dots == 0) 
-        num_of_dots = rand() % DOTS_PER_BOARD;
+        num_of_dots = esp_random() % DOTS_PER_BOARD; // 1, 2, 3
     return num_of_dots; 
 }
 
 void determine_which_dots(int num_of_dots, Board board)
 {
 	
-    int pos; 
-    int i; 
+    int pos, i;
     int on_off[DOTS_PER_BOARD] = { 0 }; 
-    on_off[rand() % DOTS_PER_BOARD] = 1;
+
+    on_off[esp_random() % DOTS_PER_BOARD] = 1;
 
     for (i = 0; i < num_of_dots - 1; ++i)
     {
         do {
-            pos = rand() % DOTS_PER_BOARD; 
-            if (on_off[pos] != 1)
-            {
-                on_off[pos] = 1;
-                break; 
-            }   
+            pos = esp_random() % DOTS_PER_BOARD; 
+            if (on_off[pos] != 1) { on_off[pos] = 1; break; }   
         } while(on_off[pos] == 1);
     }
 
@@ -313,7 +311,7 @@ void select_gpio_pads(Board board)
     for (int i = 0; i < DOTS_PER_BOARD; ++i)
     {
         gpio_pad_select_gpio(board[i].gpio_num);
-        gpio_set_direction(board[i].gpio_num, GPIO_MODE_INPUT_OUTPUT);
+        gpio_set_direction(board[i].gpio_num, GPIO_MODE_OUTPUT);
     }
 }
 
@@ -418,7 +416,6 @@ void char_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, e
 
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     
-	// start advertising once setting completed
 	if (event == ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT)
 	{
 		esp_ble_gap_start_advertising(&ble_adv_params);
@@ -435,15 +432,14 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			gl_profile.service_id.is_primary = true;
 			gl_profile.service_id.id.inst_id = 0x00;
 			gl_profile.service_id.id.uuid.len = ESP_UUID_LEN_128;
+			
 			for (uint8_t pos = 0; pos < ESP_UUID_LEN_128; pos++) 
 			{
 				gl_profile.service_id.id.uuid.uuid.uuid128[pos] = nordic_uart_service_uuid128[pos];
 			}
 
 			esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
-
 			esp_ble_gap_config_adv_data(&ble_adv_data);
-
 			esp_ble_gatts_create_service(gatts_if, &gl_profile.service_id, GATTS_NUM_HANDLE);
 			
 			break;
@@ -485,22 +481,22 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 					gl_char[ble_add_char_pos].char_handle=param->add_char.attr_handle;
 
 				
-						for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
+					for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
+					{
+						if (gl_char[pos].char_handle == 0) 
 						{
-							if (gl_char[pos].char_handle == 0) 
-							{
-								ble_add_char_pos = pos;
-								esp_ble_gatts_add_char(
-									gl_profile.service_handle, 
-									&gl_char[pos].char_uuid,
-									gl_char[pos].char_perm,
-									gl_char[pos].char_property,
-									gl_char[pos].char_val, 
-									gl_char[pos].char_control
-								);
-								break;
-							}
-						}	
+							ble_add_char_pos = pos;
+							esp_ble_gatts_add_char(
+								gl_profile.service_handle, 
+								&gl_char[pos].char_uuid,
+								gl_char[pos].char_perm,
+								gl_char[pos].char_property,
+								gl_char[pos].char_val, 
+								gl_char[pos].char_control
+							);
+							break;
+						}
+					}	
 				}
 			}
 			break;
@@ -701,21 +697,19 @@ void player2_compete_task()
 			b_swap_gre = gpio_get_level(SWAP_GRE_BUTTON);
 			b_jump_hor = gpio_get_level(JUMP_HOR_BUTTON);
 			b_jump_ver = gpio_get_level(JUMP_VER_BUTTON);
-			b_submit  = gpio_get_level(SUB_BUTTON);
+			b_submit   = gpio_get_level(SUB_BUTTON);
 
 			if (b_swap_red) swap_or_jump(SWAP, PLAYER2, R1, R2, player2_board);
 			if (b_swap_gre) swap_or_jump(SWAP, PLAYER2, G1, G2, player2_board);
 			if (b_jump_hor) swap_or_jump(JUMP, PLAYER2, R1, G2, player2_board);
 			if (b_jump_ver) swap_or_jump(JUMP, PLAYER2, R2, G1, player2_board);
-			if (b_submit) reward_points(PLAYER2);
+			if (b_submit)   reward_points(PLAYER2);
 		}
 	}
 }
 
 void app_main()
 {
-	srand(time(NULL));
-
     nvs_flash_init();
 
     // init and enable controller
@@ -760,7 +754,6 @@ void app_main()
 	gpio_isr_handler_add(JUMP_VER_BUTTON, handle_jump_ver_button, NULL);
 	gpio_isr_handler_add(SUB_BUTTON, handle_sub_button, NULL);
     
-
 	// select gpio for blue dots
 	gpio_pad_select_gpio(player1_bluedot.gpio_num);
     gpio_set_direction(player1_bluedot.gpio_num, GPIO_MODE_INPUT_OUTPUT );
@@ -799,18 +792,18 @@ void app_main()
 
 		xTaskCreate(player2_compete_task, "player2_compete_task", 2048, NULL, 10, &player2_compete_handle);
 		
-        vTaskDelay(12000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 
 		vTaskDelete(player2_compete_handle);
 
-		if (player1_points > 5)
+		if (player1_points > 9)
 		{
 			blinking(WIN, PLAYER1);
 			blinking(SCORE, PLAYER1);
 			break; 
 		}
 
-		if (player2_points > 5)
+		if (player2_points > 9)
 		{
 			blinking(WIN, PLAYER2);
 			blinking(SCORE, PLAYER2);
@@ -821,4 +814,5 @@ void app_main()
 	reset_dots(player1_board);
 	reset_dots(player2_board);
 	reset_dots(mediator_board);
+
 }
