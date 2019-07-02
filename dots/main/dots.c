@@ -6,18 +6,14 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
-#include "driver/rmt.h"
-#include <string.h>
-#include "freertos/event_groups.h"
 #include "esp_system.h"
-#include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_err.h"
 #include "esp_bt.h"
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
-#include "esp_bt_defs.h"
 #include "esp_bt_main.h"
+#include "esp_bt_defs.h"
 #include "esp_gatt_common_api.h"
 #include "sdkconfig.h"
 
@@ -50,6 +46,7 @@
 #define JUMP_VER_BUTTON 33
 #define SUB_BUTTON 19
 
+// pin bit mask
 #define BUTTON_PIN_SEL ((1ULL<<SWAP_RED_BUTTON) | (1ULL<<SWAP_GRE_BUTTON) | (1ULL<<JUMP_HOR_BUTTON) | (1ULL<<JUMP_VER_BUTTON) | (1<<SUB_BUTTON))
 
 #define GATTS_SERVICE_UUID      	0x0001
