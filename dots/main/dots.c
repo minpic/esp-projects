@@ -777,14 +777,14 @@ void app_main()
 
 		vTaskDelete(player2_compete_handle);
 
-		if (player1_points == 4)
+		if (player1_points >= 4)
 		{
 			blinking(WIN, PLAYER1);
 			blinking(SCORE, PLAYER1);
 			break; 
 		}
 
-		if (player2_points == 4)
+		if (player2_points >= 4)
 		{
 			blinking(WIN, PLAYER2);
 			blinking(SCORE, PLAYER2);
