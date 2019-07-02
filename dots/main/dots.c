@@ -93,7 +93,7 @@ typedef struct {
 
 typedef DOT Board[DOTS_PER_BOARD]; 
 
-// GATT profile structure
+// describe the application profile 
 typedef struct {
     uint16_t gatts_if;
     uint16_t app_id;
@@ -188,7 +188,9 @@ esp_attr_value_t char_rx_attr_val = {
 	.attr_value     = char_rx_content,
 };
 
-// for nordic uART
+// for nordic UART
+// https://github.com/NordicSemiconductor/Android-nRF-Toolbox/blob/master/app/src/main/java/no/nordicsemi/android/nrftoolbox/uart/UARTManager.java
+// private final static UUID UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
 static uint8_t nordic_uart_service_uuid128[BLE_SERVICE_UUID_SIZE] = {
 	0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x01, 0x00, 0x40, 0x6E,
 };
@@ -225,14 +227,15 @@ static esp_ble_adv_params_t ble_adv_params = {
 };
 
 // GATT profile
-gatts_profile_inst gl_profile = {
+gatts_profile_inst profile = {
          .gatts_if = ESP_GATT_IF_NONE,       
 };
 
 // characteristics
 gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 	{
-			// RX for uART service
+			/** RX characteristic UUID */
+			// private final static UUID UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
 			.char_uuid.len = ESP_UUID_LEN_128, 
 			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
 			.char_perm = ESP_GATT_PERM_WRITE,
@@ -243,10 +246,11 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 			.char_write_callback=char_rx_write_handler
 	},
 	{
-			// TX for uART service
-			.char_uuid.len = ESP_UUID_LEN_128,  // TX
+			/** TX characteristic UUID */
+			// private final static UUID UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+			.char_uuid.len = ESP_UUID_LEN_128,
 			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
-			.char_val = NULL, // &char_tx_attr_val,
+			.char_val = NULL, 
 			.char_control=NULL,
 			.char_handle=0,
 			.char_write_callback =NULL
@@ -426,28 +430,28 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 
 		case ESP_GATTS_REG_EVT:
 			
-			gl_profile.service_id.is_primary = true;
-			gl_profile.service_id.id.inst_id = 0x00;
-			gl_profile.service_id.id.uuid.len = ESP_UUID_LEN_128;
+			profile.service_id.is_primary = true;
+			profile.service_id.id.inst_id = 0x00;
+			profile.service_id.id.uuid.len = ESP_UUID_LEN_128;
 			
 			for (uint8_t pos = 0; pos < ESP_UUID_LEN_128; pos++) 
 			{
-				gl_profile.service_id.id.uuid.uuid.uuid128[pos] = nordic_uart_service_uuid128[pos];
+				profile.service_id.id.uuid.uuid.uuid128[pos] = nordic_uart_service_uuid128[pos];
 			}
 
 			esp_ble_gap_set_device_name(BLE_DEVICE_NAME);
 			esp_ble_gap_config_adv_data(&ble_adv_data);
-			esp_ble_gatts_create_service(gatts_if, &gl_profile.service_id, GATTS_NUM_HANDLE);
+			esp_ble_gatts_create_service(gatts_if, &profile.service_id, GATTS_NUM_HANDLE);
 			
 			break;
 
 		case ESP_GATTS_CREATE_EVT:
 		
-			gl_profile.service_handle = param->create.service_handle;
-			gl_profile.char_uuid.len = gl_char[0].char_uuid.len;
-			gl_profile.char_uuid.uuid.uuid16 = gl_char[0].char_uuid.uuid.uuid16;
+			profile.service_handle = param->create.service_handle;
+			profile.char_uuid.len = gl_char[0].char_uuid.len;
+			profile.char_uuid.uuid.uuid16 = gl_char[0].char_uuid.uuid.uuid16;
 
-			esp_ble_gatts_start_service(gl_profile.service_handle);
+			esp_ble_gatts_start_service(profile.service_handle);
 			
 			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
 			{
@@ -455,7 +459,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 				{
 					ble_add_char_pos = pos;
 					esp_ble_gatts_add_char(
-						gl_profile.service_handle, 
+						profile.service_handle, 
 						&gl_char[pos].char_uuid,
 						gl_char[pos].char_perm,
 						gl_char[pos].char_property,
@@ -469,7 +473,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			break;
 		
 		case ESP_GATTS_ADD_CHAR_EVT: 
-			gl_profile.char_handle = param->add_char.attr_handle;
+			profile.char_handle = param->add_char.attr_handle;
 
 			if (param->add_char.status==ESP_GATT_OK) 
 			{
@@ -484,7 +488,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 						{
 							ble_add_char_pos = pos;
 							esp_ble_gatts_add_char(
-								gl_profile.service_handle, 
+								profile.service_handle, 
 								&gl_char[pos].char_uuid,
 								gl_char[pos].char_perm,
 								gl_char[pos].char_property,
@@ -511,7 +515,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			}
 			break;
 		case ESP_GATTS_CONNECT_EVT:
-			gl_profile.conn_id = param->connect.conn_id;
+			profile.conn_id = param->connect.conn_id;
 			break;
 		case ESP_GATTS_DISCONNECT_EVT:
 			esp_ble_gap_start_advertising(&ble_adv_params);
@@ -528,7 +532,7 @@ void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
 	{
         if (param->reg.status == ESP_GATT_OK) 
 		{
-        	gl_profile.gatts_if = gatts_if;
+        	profile.gatts_if = gatts_if;
         } 
 		else 
 		{
@@ -729,6 +733,7 @@ void app_main()
     esp_ble_gap_register_callback(gap_event_handler);
 
     // register app
+
     esp_ble_gatts_app_register(DOTS_PLAYER1_PROFILE_ID);
 
 	// setup buttons
