@@ -54,7 +54,7 @@
 #define GATTS_NUM_HANDLE        	1 + (2 * GATTS_CHAR_NUM)
 #define BLE_DEVICE_NAME            	"DOTS_SERVER"
 #define BLE_MANUFACTURER_DATA_LEN  	4
-#define GATTS_CHAR_VAL_LEN_MAX		22 
+#define GATTS_CHAR_VAL_LEN_MAX		1
 #define DOTS_PLAYER1_PROFILE_ID 	0
 #define GATTS_TAG 					"GATTS"
 #define BLE_SERVICE_UUID_SIZE 		ESP_UUID_LEN_128
@@ -93,7 +93,6 @@ typedef struct {
 
 typedef DOT Board[DOTS_PER_BOARD]; 
 
-// describe the application profile 
 typedef struct {
     uint16_t gatts_if;
     uint16_t app_id;
@@ -175,12 +174,12 @@ static Board master_board = {
     { .gpio_num = M_G2_DOT, .dottype = G2, .level = 0 }
 }; 
 
-// DOTS server data
+// GATT server data
 // -----------------------------------------------------------
 
 // attribute values for characteristics
 
-uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
+uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11};
 
 esp_attr_value_t char_rx_attr_val = {
 	.attr_max_len 	= GATTS_CHAR_VAL_LEN_MAX,
@@ -256,9 +255,9 @@ gatts_char_inst characteristics[GATTS_CHAR_NUM] = {
 			.char_uuid.len = ESP_UUID_LEN_128,
 			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
 			.char_val = NULL, 
-			.char_control=NULL,
+			.char_control= NULL,
 			.char_handle=0,
-			.char_write_callback =NULL
+			.char_write_callback = NULL
 	}
 };
 
@@ -335,7 +334,7 @@ void reset_dots(Board board)
 }
 
 
-// dots server functions
+// GATT server functions
 // -----------------------------------------------------------
 
 void player1_compete_handler(gatts_char_inst inst)
@@ -502,36 +501,31 @@ void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp
 // -----------------------------------------------------------
 
 void IRAM_ATTR handle_swap_red_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+{ 
 	gpio_num_t gpio_no = (gpio_num_t) SWAP_RED_BUTTON; 
 	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
 
 void IRAM_ATTR handle_swap_gre_button(void* args)
 {
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
 	gpio_num_t gpio_no = (gpio_num_t) SWAP_GRE_BUTTON; 
 	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
 
 void IRAM_ATTR handle_jump_hor_button(void* args)
-{
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
+{ 
 	gpio_num_t gpio_no = (gpio_num_t) JUMP_HOR_BUTTON; 
 	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
 
 void IRAM_ATTR handle_jump_ver_button(void* args)
 {
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
 	gpio_num_t gpio_no = (gpio_num_t) JUMP_VER_BUTTON; 
 	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
 
 void IRAM_ATTR handle_sub_button(void* args)
 {
-	intr_status = READ_PERI_REG(GPIO_STATUS_REG); 
 	gpio_num_t gpio_no = (gpio_num_t) SUB_BUTTON; 
 	xQueueSendToBackFromISR(evt_queue, &gpio_no, NULL); 
 }
@@ -706,34 +700,23 @@ void player2_compete_task()
 
 void app_main()
 {
-    nvs_flash_init();
-
-    // init and enable controller
-
-    esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_bt_controller_init(&bt_cfg);
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
-  
-    // init and enable BLE protocol stack 
 
     esp_bluedroid_init();
     esp_bluedroid_enable();
 
-    // register gatt server event handler
     esp_ble_gatts_register_callback(gatts_event_handler);
 
-    // register gap event handler
     esp_ble_gap_register_callback(gap_event_handler);
-
-    // register app
 
     esp_ble_gatts_app_register(DOTS_PLAYER1_PROFILE_ID);
 
 	// setup buttons
 
-	evt_queue = xQueueCreate(10, sizeof(gpio_num_t));
+	evt_queue = xQueueCreate(5, sizeof(gpio_num_t));
 
 	gpio_config_t cfg; 
 	cfg.pin_bit_mask = BUTTON_PIN_SEL;
@@ -764,7 +747,7 @@ void app_main()
 
     int num_of_dots; 
 
-	vTaskDelay(8000 / portTICK_PERIOD_MS);
+	vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     for(;;)
     {
