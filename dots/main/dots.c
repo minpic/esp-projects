@@ -507,17 +507,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			}
 			break;
 		case ESP_GATTS_WRITE_EVT: 
-			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
-			{
-				if (gl_char[pos].char_handle==param->write.handle) 
-				{
-					
-					if (gl_char[pos].char_write_callback!=NULL) 
-					{
-						gl_char[pos].char_write_callback(event, gatts_if, param);
-					}
-				}
-			}
+			gl_char[0].char_write_callback(event, gatts_if, param);
 			break;
 		case ESP_GATTS_CONNECT_EVT:
 			profile.conn_id = param->connect.conn_id;
