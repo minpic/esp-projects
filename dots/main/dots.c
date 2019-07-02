@@ -700,6 +700,7 @@ void player2_compete_task()
 
 void app_main()
 {
+	nvs_flash_init();
 
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_bt_controller_init(&bt_cfg);
