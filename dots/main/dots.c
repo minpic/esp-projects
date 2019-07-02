@@ -51,7 +51,7 @@
 
 #define GATTS_SERVICE_UUID      	0x0001
 #define GATTS_CHAR_NUM		    	2
-#define GATTS_NUM_HANDLE        	1 + (3 * GATTS_CHAR_NUM)
+#define GATTS_NUM_HANDLE        	1 + (2 * GATTS_CHAR_NUM)
 #define BLE_DEVICE_NAME            	"DOTS_SERVER"
 #define BLE_MANUFACTURER_DATA_LEN  	4
 #define GATTS_CHAR_VAL_LEN_MAX		22 
@@ -168,7 +168,7 @@ static Board player2_board = {
     { .gpio_num = P2_G2_DOT, .dottype = G2, .level = 0 }
 }; 
 
-static Board mediator_board = {
+static Board master_board = {
     { .gpio_num = M_R1_DOT, .dottype = R1, .level = 0 }, 
     { .gpio_num = M_R2_DOT, .dottype = R2, .level = 0 },
     { .gpio_num = M_G1_DOT, .dottype = G1, .level = 0 }, 
@@ -235,7 +235,7 @@ gatts_profile_inst profile = {
 // public boolean isRequiredServiceSupported(@NonNull final BluetoothGatt gatt)
 //		return mRXCharacteristic != null && mTXCharacteristic != null && (writeRequest || writeCommand);
 
-gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
+gatts_char_inst characteristics[GATTS_CHAR_NUM] = {
 	{
 			/** RX characteristic UUID */
 			// https://github.com/NordicSemiconductor/Android-nRF-Toolbox/blob/master/app/src/main/java/no/nordicsemi/android/nrftoolbox/uart/UARTManager.java
@@ -365,13 +365,13 @@ void player1_compete_handler(gatts_char_inst inst)
 void char_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
 
 
-	if (gl_char[0].char_val != NULL) {
+	if (characteristics[0].char_val != NULL) {
 	
-		gl_char[0].char_val->attr_len = param->write.len;
+		characteristics[0].char_val->attr_len = param->write.len;
 		
 		for (uint32_t pos = 0; pos < param->write.len; pos++) 
 		{
-			gl_char[0].char_val->attr_value[pos] = param->write.value[pos];
+			characteristics[0].char_val->attr_value[pos] = param->write.value[pos];
 		}
 	}
 
@@ -379,9 +379,8 @@ void char_rx_write_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, e
 	notify_conn_id = param->write.conn_id;
     esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
 	
-	player1_compete_handler(gl_char[0]);
+	player1_compete_handler(characteristics[0]);
 }
-
 
 void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     
@@ -416,23 +415,23 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 		case ESP_GATTS_CREATE_EVT:
 		
 			profile.service_handle = param->create.service_handle;
-			profile.char_uuid.len = gl_char[0].char_uuid.len;
-			profile.char_uuid.uuid.uuid16 = gl_char[0].char_uuid.uuid.uuid16;
+			profile.char_uuid.len = characteristics[0].char_uuid.len;
+			profile.char_uuid.uuid.uuid16 = characteristics[0].char_uuid.uuid.uuid16;
 
 			esp_ble_gatts_start_service(profile.service_handle);
 			
 			for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
 			{
-				if (gl_char[pos].char_handle == 0) 
+				if (characteristics[pos].char_handle == 0) 
 				{
 					ble_add_char_pos = pos;
 					esp_ble_gatts_add_char(
 						profile.service_handle, 
-						&gl_char[pos].char_uuid,
-						gl_char[pos].char_perm,
-						gl_char[pos].char_property,
-						gl_char[pos].char_val, 
-						gl_char[pos].char_control
+						&characteristics[pos].char_uuid,
+						characteristics[pos].char_perm,
+						characteristics[pos].char_property,
+						characteristics[pos].char_val, 
+						characteristics[pos].char_control
 					);
 					break;
 				}
@@ -447,21 +446,19 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			{
 				if (param->add_char.attr_handle != 0) 
 				{
-					gl_char[ble_add_char_pos].char_handle=param->add_char.attr_handle;
-
-				
+					characteristics[ble_add_char_pos].char_handle=param->add_char.attr_handle;
 					for (uint32_t pos = 0; pos < GATTS_CHAR_NUM; pos++) 
 					{
-						if (gl_char[pos].char_handle == 0) 
+						if (characteristics[pos].char_handle == 0) 
 						{
 							ble_add_char_pos = pos;
 							esp_ble_gatts_add_char(
 								profile.service_handle, 
-								&gl_char[pos].char_uuid,
-								gl_char[pos].char_perm,
-								gl_char[pos].char_property,
-								gl_char[pos].char_val, 
-								gl_char[pos].char_control
+								&characteristics[pos].char_uuid,
+								characteristics[pos].char_perm,
+								characteristics[pos].char_property,
+								characteristics[pos].char_val, 
+								characteristics[pos].char_control
 							);
 							break;
 						}
@@ -470,7 +467,7 @@ void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts
 			}
 			break;
 		case ESP_GATTS_WRITE_EVT: 
-			gl_char[0].char_write_callback(event, gatts_if, param);
+			characteristics[0].char_write_callback(event, gatts_if, param);
 			break;
 		case ESP_GATTS_CONNECT_EVT:
 			profile.conn_id = param->connect.conn_id;
@@ -608,9 +605,9 @@ void blinking(BLINKTYPE blink_type, PLAYER player)
 		case WIN:
 			for (int i = 0; i < DOTS_PER_BOARD * 3; ++i)
 			{
-				gpio_set_level(mediator_board[i % DOTS_PER_BOARD].gpio_num, 1);
+				gpio_set_level(master_board[i % DOTS_PER_BOARD].gpio_num, 1);
 				vTaskDelay(50 / portTICK_PERIOD_MS);
-				gpio_set_level(mediator_board[i % DOTS_PER_BOARD].gpio_num, 0);
+				gpio_set_level(master_board[i % DOTS_PER_BOARD].gpio_num, 0);
 				vTaskDelay(50 / portTICK_PERIOD_MS);
 			}
 		default:
@@ -620,13 +617,7 @@ void blinking(BLINKTYPE blink_type, PLAYER player)
 
 void reward_points(PLAYER player)
 {
-	int possible_points = 0;
 	bool locked_out = true; 
-
-	for (int i = 0; i < DOTS_PER_BOARD; ++i)
-	{
-		possible_points += mediator_board[i].level; 
-	}
 
 	if (player == PLAYER1)
 	{	
@@ -641,18 +632,22 @@ void reward_points(PLAYER player)
 
 		for (int i = 0; i < DOTS_PER_BOARD; ++i)
 		{
-			if (player1_board[i].level != mediator_board[i].level)
+			if (player1_board[i].level != master_board[i].level)
 			{
 				reset_dots(player1_board);
-				player1_points -= possible_points;
+				player1_points -= 1;
+				printf("-------------\n");
 				printf("player 1: %d\n", player1_points);
+				printf("player 2: %d\n", player2_points);
 				return;
 			}
 		}
 		reset_dots(player2_board);
 		blinking(SCORE, PLAYER1);
-		player1_points += possible_points; 
+		player1_points += 1; 
+		printf("-------------\n");
 		printf("player 1: %d\n", player1_points);
+		printf("player 2: %d\n", player2_points);
 	} 
 	else if (player == PLAYER2)
 	{
@@ -666,17 +661,21 @@ void reward_points(PLAYER player)
 
 		for (int i = 0; i < DOTS_PER_BOARD; ++i)
 		{
-			if (player2_board[i].level != mediator_board[i].level)
+			if (player2_board[i].level != master_board[i].level)
 			{
 				reset_dots(player2_board);
-				player2_points -= possible_points;
+				player2_points -= 1;
+				printf("-------------\n");
+				printf("player 1: %d\n", player1_points);
 				printf("player 2: %d\n", player2_points);
 				return;
 			}
 		}
 		reset_dots(player1_board);
 		blinking(SCORE, PLAYER2);
-		player2_points += possible_points; 
+		player2_points += 1; 
+		printf("-------------\n");
+		printf("player 1: %d\n", player1_points);
 		printf("player 2: %d\n", player2_points);
 	}
 	return;      
@@ -761,7 +760,7 @@ void app_main()
     // select gpio for each board
     select_gpio_pads(player1_board);
     select_gpio_pads(player2_board);
-    select_gpio_pads(mediator_board);    
+    select_gpio_pads(master_board);    
 
     int num_of_dots; 
 
@@ -773,7 +772,7 @@ void app_main()
 
         reset_dots(player1_board);
         reset_dots(player2_board);
-        reset_dots(mediator_board);
+        reset_dots(master_board);
 		reset_bluedots();
 
         vTaskDelay(1000/ portTICK_PERIOD_MS);
@@ -781,11 +780,11 @@ void app_main()
         num_of_dots = create_num_of_dots();
         determine_which_dots(num_of_dots, player1_board);
         determine_which_dots(num_of_dots, player2_board);
-        determine_which_dots(num_of_dots, mediator_board);
+        determine_which_dots(num_of_dots, master_board);
 
         set_gpio_levels(player1_board);
         set_gpio_levels(player2_board);
-        set_gpio_levels(mediator_board);
+        set_gpio_levels(master_board);
 		set_bluedot_levels();
 
 		xTaskCreate(player2_compete_task, "player2_compete_task", 2048, NULL, 10, &player2_compete_handle);
@@ -794,14 +793,14 @@ void app_main()
 
 		vTaskDelete(player2_compete_handle);
 
-		if (player1_points > 9)
+		if (player1_points == 4)
 		{
 			blinking(WIN, PLAYER1);
 			blinking(SCORE, PLAYER1);
 			break; 
 		}
 
-		if (player2_points > 9)
+		if (player2_points == 4)
 		{
 			blinking(WIN, PLAYER2);
 			blinking(SCORE, PLAYER2);
@@ -811,6 +810,6 @@ void app_main()
 
 	reset_dots(player1_board);
 	reset_dots(player2_board);
-	reset_dots(mediator_board);
+	reset_dots(master_board);
 
 }
