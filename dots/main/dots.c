@@ -54,7 +54,7 @@
 #define GATTS_NUM_HANDLE        	1 + (3 * GATTS_CHAR_NUM)
 #define BLE_DEVICE_NAME            	"DOTS_SERVER"
 #define BLE_MANUFACTURER_DATA_LEN  	4
-#define GATTS_CHAR_VAL_LEN_MAX		22
+#define GATTS_CHAR_VAL_LEN_MAX		22 
 #define DOTS_PLAYER1_PROFILE_ID 	0
 #define GATTS_TAG 					"GATTS"
 #define BLE_SERVICE_UUID_SIZE 		ESP_UUID_LEN_128
@@ -178,7 +178,7 @@ static Board mediator_board = {
 // DOTS server data
 // -----------------------------------------------------------
 
-// attribute values for characteristics and descriptors
+// attribute values for characteristics
 
 uint8_t char_rx_content[GATTS_CHAR_VAL_LEN_MAX] = {0x11,0x22,0x33};
 
@@ -231,15 +231,19 @@ gatts_profile_inst profile = {
          .gatts_if = ESP_GATT_IF_NONE,       
 };
 
-// characteristics
+// characteristics (nRF Toolbox requires RX and TX characteristics)
+// public boolean isRequiredServiceSupported(@NonNull final BluetoothGatt gatt)
+//		return mRXCharacteristic != null && mTXCharacteristic != null && (writeRequest || writeCommand);
+
 gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 	{
 			/** RX characteristic UUID */
+			// https://github.com/NordicSemiconductor/Android-nRF-Toolbox/blob/master/app/src/main/java/no/nordicsemi/android/nrftoolbox/uart/UARTManager.java
 			// private final static UUID UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
 			.char_uuid.len = ESP_UUID_LEN_128, 
 			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x02, 0x00, 0x40, 0x6E },
 			.char_perm = ESP_GATT_PERM_WRITE,
-			.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY,
+			.char_property = ESP_GATT_CHAR_PROP_BIT_WRITE,
 			.char_val = &char_rx_attr_val,
 			.char_control = NULL,
 			.char_handle = 0,
@@ -247,6 +251,7 @@ gatts_char_inst gl_char[GATTS_CHAR_NUM] = {
 	},
 	{
 			/** TX characteristic UUID */
+			// https://github.com/NordicSemiconductor/Android-nRF-Toolbox/blob/master/app/src/main/java/no/nordicsemi/android/nrftoolbox/uart/UARTManager.java
 			// private final static UUID UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
 			.char_uuid.len = ESP_UUID_LEN_128,
 			.char_uuid.uuid.uuid128 =  { 0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x03, 0x00, 0x40, 0x6E },
